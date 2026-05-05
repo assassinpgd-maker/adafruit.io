@@ -1,0 +1,84 @@
+import time
+import network
+from machine import Pin, I2C
+from umqtt.simple import MQTTClient
+import bme280
+
+# =========================
+# WIFI SETTINGS
+# =========================
+WIFI_SSID = "OPPO A3 Pro 5G"
+WIFI_PASSWORD = "Dhash110106"
+
+# =========================
+# ADAFRUIT IO SETTINGS
+# =========================
+AIO_USERNAME = "Theva"
+AIO_KEY = "***********************"
+
+MQTT_SERVER = "io.adafruit.com"
+MQTT_PORT = 1883
+
+CLIENT_ID = "lilex4_bme280"
+TEMP_FEED = f"{AIO_USERNAME}/feeds/temperature"
+HUM_FEED = f"{AIO_USERNAME}/feeds/humidity"
+PRES_FEED = f"{AIO_USERNAME}/feeds/pressure"
+
+# =========================
+# CONNECT WIFI
+# =========================
+wifi = network.WLAN(network.STA_IF)
+wifi.active(True)
+wifi.connect(WIFI_SSID, WIFI_PASSWORD)
+
+print("Connecting to WiFi...")
+while not wifi.isconnected():
+    time.sleep(1)
+
+print("WiFi connected:", wifi.ifconfig())
+
+# =========================
+# BME280 SETUP
+# =========================
+i2c = I2C(1, scl=Pin(3), sda=Pin(2))
+sensor = bme280.BME280(i2c=i2c)
+
+# =========================
+# MQTT CONNECT
+# =========================
+client = MQTTClient(
+    client_id=CLIENT_ID,
+    server=MQTT_SERVER,
+    user=AIO_USERNAME,
+    password=AIO_KEY,
+    port=MQTT_PORT
+)
+
+client.connect()
+print("Connected to Adafruit IO")
+
+# =========================
+# MAIN LOOP
+# =========================
+while True:
+    try:
+        temp, pres, hum = sensor.read_compensated_data()
+
+        temperature = temp / 100
+        humidity = hum / 1024
+        pressure = pres / 25600
+
+        print("Temp:", temperature)
+        print("Humidity:", humidity)
+        print("Pressure:", pressure)
+
+        client.publish(TEMP_FEED, str(temperature))
+        client.publish(HUM_FEED, str(humidity))
+        client.publish(PRES_FEED, str(pressure))
+
+        print("Sent to Adafruit IO\n")
+        time.sleep(5)
+
+    except Exception as e:
+        print("Error:", e)
+        time.sleep(5)
